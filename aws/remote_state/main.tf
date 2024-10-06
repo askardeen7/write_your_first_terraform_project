@@ -10,14 +10,6 @@
 
 terraform {
   required_version = ">= 0.12"
-
-  backend "s3" {
-    bucket         = "${local.account_id}-terraform-states"
-    key            = "environments/dev/terraform.tfstate"
-    region         = "us-east-1"  # Use the same region as your provider
-    dynamodb_table = "terraform-lock"
-    encrypt        = true
-  }
 }
 
 # ------------------------------------------------------------------------------ 
