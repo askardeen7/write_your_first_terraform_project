@@ -10,35 +10,36 @@
 
 terraform {
   required_version = ">= 0.12"
+
+  backend "s3" {
+    bucket         = "${local.account_id}-terraform-states"
+    key            = "environments/dev/terraform.tfstate"
+    region         = "us-east-1"  # Use the same region as your provider
+    dynamodb_table = "terraform-lock"
+    encrypt        = true
+  }
 }
 
-# ------------------------------------------------------------------------------
-# CONFIGURE OUR AWS CONNECTION
-# ------------------------------------------------------------------------------
-
+# ------------------------------------------------------------------------------ 
+# CONFIGURE OUR AWS CONNECTION 
+# ------------------------------------------------------------------------------ 
 provider "aws" {
-             region = "us-east-1"
+  region = "us-east-1"
 }
 
-# ------------------------------------------------------------------------------
-# CREATE THE S3 BUCKET
-# ------------------------------------------------------------------------------
+# ------------------------------------------------------------------------------ 
+# CREATE THE S3 BUCKET 
+# ------------------------------------------------------------------------------ 
 
 data "aws_caller_identity" "current" {}
 
 locals {
-  account_id    = data.aws_caller_identity.current.account_id
+  account_id = data.aws_caller_identity.current.account_id
 }
 
+# S3 bucket creation
 resource "aws_s3_bucket" "terraform_state" {
-  # With account id, this S3 bucket names can be *globally* unique.
   bucket = "${local.account_id}-terraform-states"
-
-  # Enable versioning so we can see the full revision history of our
-  # state files
-  versioning {
-    enabled = true
-  }
 
   # Enable server-side encryption by default
   server_side_encryption_configuration {
@@ -50,10 +51,18 @@ resource "aws_s3_bucket" "terraform_state" {
   }
 }
 
-# ------------------------------------------------------------------------------
-# CREATE THE DYNAMODB TABLE
-# ------------------------------------------------------------------------------
+# Separate resource for enabling versioning
+resource "aws_s3_bucket_versioning" "terraform_state_versioning" {
+  bucket = aws_s3_bucket.terraform_state.id
 
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# ------------------------------------------------------------------------------ 
+# CREATE THE DYNAMODB TABLE 
+# ------------------------------------------------------------------------------ 
 resource "aws_dynamodb_table" "terraform_lock" {
   name         = "terraform-lock"
   billing_mode = "PAY_PER_REQUEST"
@@ -62,5 +71,17 @@ resource "aws_dynamodb_table" "terraform_lock" {
   attribute {
     name = "LockID"
     type = "S"
+  }
+}
+
+# ------------------------------------------------------------------------------ 
+# CREATE AN EC2 INSTANCE 
+# ------------------------------------------------------------------------------ 
+resource "aws_instance" "app_server" {
+  ami           = "ami-005fc0f236362e99f"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "Terraform_Demo"
   }
 }
